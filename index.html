@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111412">
+  <meta name="description" content="Find your next hunting ground. Explore Chronicle 1 monster spawn areas by level across Aden and Elmore.">
+  <title>C1 Monster Atlas — Find your hunting ground</title>
+  <link rel="icon" type="image/svg+xml" href="assets/compass.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m16 8-2.5 5.5L8 16l2.5-5.5L16 8Z"/><path d="M12 1v2m0 18v2M1 12h2m18 0h2"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+  </defs></svg>
+  <header class="app-header">
+    <a href="./" class="brand" aria-label="C1 Monster Atlas home"><span class="brand-icon"><svg><use href="#i-compass"/></svg></span><span><strong>MONSTER ATLAS<span class="brand-period">.</span></strong><small>LINEAGE II · CHRONICLE 1</small></span></a>
+    <div class="header-note"><span class="live-dot"></span> A better view of your next hunt.</div>
+    <a class="source-link" href="https://l2hub.info/c1/locs" target="_blank" rel="noopener noreferrer">Explore L2Hub <svg><use href="#i-arrow"/></svg></a>
+  </header>
+  <main class="workspace">
+    <aside class="levels-panel" aria-labelledby="levels-title">
+      <div class="panel-heading"><div><span class="eyebrow">FIND YOUR RANGE</span><h1 id="levels-title">Monster levels</h1></div><button id="clear-levels" class="text-button" title="Clear all selected levels">Clear</button></div>
+      <p class="level-help">Click a level to explore.<br>Check a few to compare.</p>
+      <div class="level-column-head"><span>LEVEL</span><span>MOBS</span></div>
+      <div id="levels" class="level-list" aria-label="Monster levels"><div class="loading-text">Loading levels…</div></div>
+      <div class="selection-summary"><span id="selected-level-count">1 level selected</span><span class="keyboard-hint">✓ combine levels</span></div>
+    </aside>
+    <section class="map-panel" aria-label="Interactive monster spawn map">
+      <div class="map-toolbar"><div class="map-tabs" role="tablist" aria-label="World map"><button id="tab-aden" class="map-tab active" role="tab" aria-selected="true" aria-controls="map-stage" data-map="aden"><svg><use href="#i-compass"/></svg>Aden<span class="tab-count" id="count-aden">—</span></button><button id="tab-elmore" class="map-tab" role="tab" aria-selected="false" aria-controls="map-stage" data-map="elmore">Elmore<span class="tab-count" id="count-elmore">—</span></button></div><button id="fit-map" class="quiet-button fit-button" title="Fit selected spawn areas"><svg><use href="#i-expand"/></svg><span>Fit spawns</span></button></div>
+      <div id="map-stage" class="map-stage" role="tabpanel" aria-labelledby="tab-aden">
+        <canvas id="map" tabindex="0" aria-label="Aden map. Drag to pan, scroll or use plus and minus to zoom. Arrow keys pan. Press zero to reset."></canvas>
+        <div class="map-caption"><span class="eyebrow">THE WORLD OF LINEAGE II</span><h2 id="map-name">Aden</h2><span id="map-detail">Choose a level. Find your hunting ground.</span></div>
+        <div class="map-corner"><span class="live-dot"></span>C1 SPAWN DATA</div>
+        <div id="map-message" class="map-message" hidden></div>
+        <div id="map-loading" class="map-loading"><span class="loader"></span><span>Unfolding the atlas…</span></div>
+        <div id="map-tooltip" class="map-tooltip" hidden></div>
+        <div class="map-controls" aria-label="Map controls"><button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button><button id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button><span></span><button id="reset-map" title="Show the whole map" aria-label="Show the whole map"><svg><use href="#i-reset"/></svg></button></div>
+        <div class="map-coordinates" id="coordinates">X — &nbsp; Y —</div>
+        <div class="map-instruction">SCROLL TO ZOOM <span>·</span> DRAG TO EXPLORE</div>
+      </div>
+      <div class="map-legend"><div id="legend" class="legend-items"></div><span id="spawn-count" class="spawn-count">— spawn areas</span></div>
+    </section>
+    <aside class="monsters-panel" aria-labelledby="monsters-title">
+      <div class="monster-heading"><div><span class="eyebrow">KNOW YOUR HUNT</span><h2 id="monsters-title">Monsters <span id="monster-count" class="count-badge">—</span></h2></div><svg class="heading-icon"><use href="#i-pin"/></svg></div>
+      <div class="monster-tools"><label class="search-field"><svg><use href="#i-search"/></svg><input type="search" id="search" placeholder="Find a monster or location…" aria-label="Search selected monsters or locations"><kbd>/</kbd></label><div class="aggro-filters" aria-label="Aggression filter"><button class="filter active" data-aggro="all" aria-pressed="true">All</button><button class="filter" data-aggro="passive" aria-pressed="false"><span class="passive-dot"></span>Passive</button><button class="filter" data-aggro="aggressive" aria-pressed="false"><span class="aggressive-dot"></span>Aggressive</button></div></div>
+      <div id="monster-list" class="monster-list"><div class="loading-text">Loading monsters…</div></div>
+      <div class="monster-footer"><svg><use href="#i-target"/></svg><span>Use the crosshair to find a monster.<br>Names open its L2Hub page.</span></div>
+    </aside>
+  </main>
+  <footer class="app-footer"><span><span class="footer-mark">C1</span> HARBINGERS OF WAR</span><span id="dataset-summary">Preparing the atlas…</span><span>Data & maps from <a href="https://l2hub.info/c1" target="_blank" rel="noopener noreferrer">L2Hub <svg><use href="#i-arrow"/></svg></a></span></footer>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
