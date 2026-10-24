@@ -85,7 +85,6 @@ function render({ fit = true } = {}) {
   message.innerHTML = !state.levels.size ? 'A world of hunting grounds.<small>Select a monster level to begin.</small>' : !visible.length ? 'No monsters match your filters.<small>Try clearing your search or changing the aggression filter.</small>' : `No selected monsters in ${map.name}.<small>Try the ${state.map === 'aden' ? 'Elmore' : 'Aden'} tab or choose another level.</small>`;
   $$('.filter').forEach(button => { const active = state.aggro === button.dataset.aggro; button.classList.toggle('active', active); button.setAttribute('aria-pressed', active); });
   closeTooltip(); hoverId = null; focusedId = null;
-  saveUrl();
   if (fit) fitShapes();
   scheduleDraw();
 }
