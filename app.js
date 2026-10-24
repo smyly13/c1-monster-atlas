@@ -8,7 +8,7 @@ const canvas = $('#map');
 const ctx = canvas.getContext('2d');
 const stage = $('#map-stage');
 const params = new URLSearchParams(location.search);
-const state = { levels: new Set(params.has('levels') ? params.get('levels').split(',').filter(Boolean).map(Number) : [8]), map: params.get('map') === 'elmore' ? 'elmore' : 'aden', search: params.get('q') ?? '', aggro: ['passive', 'aggressive'].includes(params.get('aggro')) ? params.get('aggro') : 'all' };
+const state = { levels: new Set(params.has('levels') ? params.get('levels').split(',').filter(Boolean).map(Number) : []), map: params.get('map') === 'elmore' ? 'elmore' : 'aden', search: params.get('q') ?? '', aggro: ['passive', 'aggressive'].includes(params.get('aggro')) ? params.get('aggro') : 'all' };
 let data, map, visible = [], selected = [], shapes = [], imageCache = new Map();
 let width = 0, height = 0, view = { scale: 1, x: 0, y: 0 }, minScale = .1;
 let hoverId = null, focusedId = null, pinned = false, drag = null, frame = null, toastTimer;
@@ -85,6 +85,7 @@ function render({ fit = true } = {}) {
   message.innerHTML = !state.levels.size ? 'A world of hunting grounds.<small>Select a monster level to begin.</small>' : !visible.length ? 'No monsters match your filters.<small>Try clearing your search or changing the aggression filter.</small>' : `No selected monsters in ${map.name}.<small>Try the ${state.map === 'aden' ? 'Elmore' : 'Aden'} tab or choose another level.</small>`;
   $$('.filter').forEach(button => { const active = state.aggro === button.dataset.aggro; button.classList.toggle('active', active); button.setAttribute('aria-pressed', active); });
   closeTooltip(); hoverId = null; focusedId = null;
+  saveUrl();
   if (fit) fitShapes();
   scheduleDraw();
 }
