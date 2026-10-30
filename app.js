@@ -10,7 +10,7 @@ const canvas = $('#map');
 const ctx = canvas.getContext('2d');
 const stage = $('#map-stage');
 const params = new URLSearchParams(location.search);
-const state = { levels: new Set(params.has('levels') ? params.get('levels').split(',').filter(Boolean).map(Number) : [8]), map: params.get('map') === 'elmore' ? 'elmore' : 'aden', search: params.get('q') ?? '', aggro: ['passive', 'aggressive'].includes(params.get('aggro')) ? params.get('aggro') : 'all' };
+const state = { levels: new Set(params.has('levels') ? params.get('levels').split(',').filter(Boolean).map(Number) : []), map: params.get('map') === 'elmore' ? 'elmore' : 'aden', search: params.get('q') ?? '', aggro: ['passive', 'aggressive'].includes(params.get('aggro')) ? params.get('aggro') : 'all' };
 state.weakness = params.get('weakness') ?? 'all';
 state.resistance = params.get('resistance') ?? 'all';
 let data, map, visible = [], selected = [], shapes = [], imageCache = new Map();
