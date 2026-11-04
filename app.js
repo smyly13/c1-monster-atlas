@@ -1,4 +1,6 @@
 import { matchesTrait, traitLabel, traitOptions } from './traits.js';
+import { loadProfile, SURRENDER_SKILLS, PROFILE_KEY, TOGGLE_KEY } from './combat.js';
+import { killCard } from './combat-ui.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -10,27 +12,92 @@ const canvas = $('#map');
 const ctx = canvas.getContext('2d');
 const stage = $('#map-stage');
 const params = new URLSearchParams(location.search);
-const state = { levels: new Set(params.has('levels') ? params.get('levels').split(',').filter(Boolean).map(Number) : []), map: params.get('map') === 'elmore' ? 'elmore' : 'aden', search: params.get('q') ?? '', aggro: ['passive', 'aggressive'].includes(params.get('aggro')) ? params.get('aggro') : 'all' };
+const state = { levels: new Set(params.has('levels') ? params.get('levels').split(',').filter(Boolean).map(Number) : []), map: params.get('map') === 'elmore' ? 'elmore' : 'aden' };
 state.weakness = params.get('weakness') ?? 'all';
-state.resistance = params.get('resistance') ?? 'all';
+state.surrender = params.get('surrender') ?? '';
+state.stamina = 100;
 let data, map, visible = [], selected = [], shapes = [], imageCache = new Map();
 let width = 0, height = 0, view = { scale: 1, x: 0, y: 0 }, minScale = .1;
-let hoverId = null, focusedId = null, pinned = false, drag = null, frame = null, toastTimer;
-
-function notify(message) {
-  $('#toast').textContent = message;
-  $('#toast').hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 2800);
+let hoverId = null, focusedId = null, pinned = false, drag = null, frame = null;
+let combatCatalog;
+let killView = 'off', showKills = false, combatWorker, combatLoading, combatRequest = 0;
+const killResults = new Map();
+function syncKillView(value) {
+  killView = value === '1' ? loadProfile().sort : ['cost','casts','mp'].includes(value) ? value : 'off';
+  showKills = killView !== 'off';
+  $('#kill-view input[value="'+killView+'"]').checked = true;
 }
+try { syncKillView(localStorage.getItem(TOGGLE_KEY)); } catch { syncKillView('off'); }
+
+async function renderKills() {
+  $('#kill-status').hidden = true;
+  if (!data) return;
+  try {
+    if (!combatLoading) combatLoading = (async () => {
+      const response = await fetch('data/combat.json');
+      if (!response.ok) throw new Error('Combat data unavailable');
+      combatCatalog = await response.json();
+      renderList();
+    })();
+    await combatLoading;
+    if (!showKills) return;
+    if (!combatWorker) {
+      combatWorker = new Worker(new URL('./combat-worker.js', import.meta.url), { type: 'module' });
+      combatWorker.postMessage({ type: 'init', catalog: combatCatalog, monsters: data.monsters });
+      combatWorker.onmessage = ({ data: message }) => {
+        if (message.requestId !== combatRequest || !showKills) return;
+        for (const row of message.results) {
+          killResults.set(row.id, row.result);
+          const slot = $(`[data-kill="${row.id}"]`);
+          if (slot) slot.innerHTML = killCard(row.result);
+        }
+        if (message.done) $('#kill-status').hidden = true;
+      };
+      combatWorker.onerror = () => {
+        $('#kill-status').hidden = false;
+        $('#kill-status').textContent = 'Kill estimates unavailable. Reload to try again.';
+        $$('.kill-slot').forEach(slot => { slot.textContent = 'Calculator unavailable'; });
+      };
+    }
+    const ids = visible.filter(m => !killResults.has(m.id)).map(m => m.id);
+    combatWorker.postMessage({ type: 'calculate', requestId: ++combatRequest, profile: { ...loadProfile(), sort: killView, shot: 'auto', surrender: state.surrender, dropAmount: state.stamina / 100 }, ids });
+  } catch {
+    combatLoading = null;
+    if (!showKills) return;
+    $('#kill-status').hidden = false;
+    $('#kill-status').textContent = 'Combat data unavailable. Turn estimates off and on to retry.';
+    $$('.kill-slot').forEach(slot => { slot.textContent = 'Combat data unavailable'; });
+  }
+}
+function refreshKillView() {
+  combatRequest++;
+  killResults.clear();
+  if (data) { renderList(); renderKills(); }
+}
+$('#stamina').addEventListener('change', event => {
+  state.stamina = Number(event.target.value);
+  if (showKills) refreshKillView();
+});
+$('#kill-view').addEventListener('change', event => {
+  syncKillView(event.target.value);
+  try { localStorage.setItem(TOGGLE_KEY, killView); } catch {}
+  refreshKillView();
+});
+window.addEventListener('storage', event => {
+  if (event.key === TOGGLE_KEY) syncKillView(event.newValue);
+  if (event.key === PROFILE_KEY || event.key === TOGGLE_KEY) refreshKillView();
+});
+document.addEventListener('click', event => {
+  if (event.target.closest('a[href^="calculator.html"]')) try { sessionStorage.setItem('c1-atlas-return', location.search); } catch {}
+});
+
 function saveUrl() {
   const query = new URLSearchParams();
-  query.set('levels', [...state.levels].sort((a, b) => a - b).join(','));
+  if (state.levels.size) query.set('levels', [...state.levels].sort((a, b) => a - b).join(','));
   if (state.map !== 'aden') query.set('map', state.map);
-  if (state.search) query.set('q', state.search);
-  if (state.aggro !== 'all') query.set('aggro', state.aggro);
-  for (const kind of ['weakness', 'resistance']) if (state[kind] !== 'all') query.set(kind, state[kind]);
-  history.replaceState(null, '', `${location.pathname}?${query}`);
+  if (state.weakness !== 'all') query.set('weakness', state.weakness);
+  if (state.surrender) query.set('surrender', state.surrender);
+  history.replaceState(null, '', query.size ? `${location.pathname}?${query}` : location.pathname);
 }
 function pixel(point, target = map) { return { x: target.zeroX + point.x * target.scale, y: target.zeroY + point.y * target.scale }; }
 function inMap(point, target = map) { const p = pixel(point, target); return p.x >= 0 && p.x <= target.width && p.y >= 0 && p.y <= target.height; }
@@ -56,29 +123,36 @@ function renderTraits(monster) {
 function renderList() {
   $('#monster-count').textContent = visible.length;
   if (!visible.length) {
-    $('#monster-list').innerHTML = `<div class="empty-list">${icon(state.levels.size ? 'search' : 'compass')}<strong>${state.levels.size ? 'No matching monsters' : 'Your next hunt starts here'}</strong><small>${state.levels.size ? 'Try another search or change the aggression, weakness or resistance filters.' : 'Select a level on the left to reveal its monsters and spawn areas.'}</small></div>`;
+    $('#monster-list').innerHTML = `<div class="empty-list">${icon(state.levels.size ? 'search' : 'compass')}<strong>${state.levels.size ? 'No matching monsters' : 'Your next hunt starts here'}</strong><small>${state.levels.size ? 'Try another weakness or level.' : 'Select a level on the left to reveal its monsters and spawn areas.'}</small></div>`;
     return;
   }
   const groups = new Map();
-  visible.forEach(monster => { if (!groups.has(monster.level)) groups.set(monster.level, []); groups.get(monster.level).push(monster); });
+  // Keep the level groups, but put every unknown-drop group after known drops.
+  const unknownGroups = new Map();
+  for (const monster of visible) {
+    const unknown = combatCatalog && !combatCatalog.monsters[monster.id]?.adena;
+    const bucket = unknown ? unknownGroups : groups;
+    if (!bucket.has(monster.level)) bucket.set(monster.level, []);
+    bucket.get(monster.level).push(monster);
+  }
   const nameCounts = new Map();
   visible.forEach(monster => nameCounts.set(`${monster.level}:${monster.name}`, (nameCounts.get(`${monster.level}:${monster.name}`) ?? 0) + 1));
-  $('#monster-list').innerHTML = [...groups].map(([level, monsters]) => `<section class="monster-group" aria-label="Level ${level} monsters"><div class="monster-group-heading"><span class="group-level" style="--level-color:${color(level)}"><span class="legend-dot"></span>LEVEL ${level}</span><span class="group-count">${monsters.length} monster${monsters.length === 1 ? '' : 's'}</span></div>${monsters.map(monster => {
+  $('#monster-list').innerHTML = [...groups, ...unknownGroups].map(([level, monsters], index) => `<section class="monster-group" aria-label="Level ${level} monsters"><div class="monster-group-heading"><span class="group-level" style="--level-color:${color(level)}"><span class="legend-dot"></span>LEVEL ${level}${index >= groups.size ? ' · Drop unknown' : ''}</span><span class="group-count">${monsters.length} monster${monsters.length === 1 ? '' : 's'}</span></div>${monsters.map(monster => {
     const location = monster.locations.map(loc => loc.name).join(', ') || 'Location not named';
     const duplicate = nameCounts.get(`${level}:${monster.name}`) > 1;
-    return `<div class="monster-row ${monster.maps.includes(state.map) ? '' : 'other-map'}" data-id="${monster.id}"><a class="monster-link" href="https://l2hub.info/c1/npcs/${encodeURIComponent(monster.slug)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(monster.name)}, level ${level}, ${escapeHtml(location)}. Open L2Hub in a new tab."><span class="monster-name">${escapeHtml(monster.name)} <span class="monster-location">( ${escapeHtml(location)} )</span>${icon('arrow').replace('<svg', '<svg class="external-mark"')}</span><span class="monster-sub"><span class="${monster.aggressive ? 'aggressive' : 'passive'}-dot"></span>${monster.aggressive ? 'Aggressive' : 'Passive'}<span class="monster-map">${monster.maps.map(id => id === 'aden' ? 'Aden' : 'Elmore').join(' · ')}</span>${duplicate ? `<span>· ID ${monster.id}</span>` : ''}</span>${renderTraits(monster)}</a><button class="locate-button" data-locate="${monster.id}" title="Find ${escapeHtml(monster.name)} on the map" aria-label="Find ${escapeHtml(monster.name)} on the map">${icon('target')}</button></div>`;
+    return `<div class="monster-entry"><div class="monster-row ${monster.maps.includes(state.map) ? '' : 'other-map'}" data-id="${monster.id}"><a class="monster-link" href="https://l2hub.info/c1/npcs/${encodeURIComponent(monster.slug)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(monster.name)}, level ${level}, ${escapeHtml(location)}. Open L2Hub in a new tab."><span class="monster-name">${escapeHtml(monster.name)} <span class="monster-location">( ${escapeHtml(location)} )</span>${icon('arrow').replace('<svg', '<svg class="external-mark"')}</span><span class="monster-sub"><span class="${monster.aggressive ? 'aggressive' : 'passive'}-dot"></span>${monster.aggressive ? 'Aggressive' : 'Passive'}<span class="monster-map">${monster.maps.map(id => id === 'aden' ? 'Aden' : 'Elmore').join(' · ')}</span>${duplicate ? `<span>· ID ${monster.id}</span>` : ''}</span>${renderTraits(monster)}</a></div>${showKills ? `<div class="kill-slot" data-kill="${monster.id}">${killCard(killResults.get(monster.id))}</div>` : ''}</div>`;
   }).join('')}</section>`).join('');
 }
 
 function render({ fit = true } = {}) {
   if (!data) return;
   selected = data.monsters.filter(monster => state.levels.has(monster.level));
-  const query = state.search.trim().toLocaleLowerCase();
-  visible = selected.filter(monster => (state.aggro === 'all' || monster.aggressive === (state.aggro === 'aggressive')) && matchesTrait(monster, 'weakness', state.weakness) && matchesTrait(monster, 'resistance', state.resistance) && (!query || `${monster.name} ${monster.locations.map(loc => loc.name).join(' ')}`.toLocaleLowerCase().includes(query)));
+  visible = selected.filter(monster => matchesTrait(monster, 'weakness', state.weakness));
   map = data.maps.find(entry => entry.id === state.map);
   shapes = currentMonsters().flatMap(monster => mapSpawns(monster).map(spawn => ({ monster, points: spawn.pos.map(point => pixel(point)) })));
   renderLevels();
   renderList();
+  renderKills();
   $$('.map-tab').forEach(tab => { const active = tab.dataset.map === state.map; tab.classList.toggle('active', active); tab.setAttribute('aria-selected', active); });
   stage.setAttribute('aria-labelledby', `tab-${state.map}`);
   canvas.setAttribute('aria-label', `${map.name} map with ${currentMonsters().length} selected monsters. Drag to pan, scroll or use plus and minus to zoom. Arrow keys pan. Press zero to reset.`);
@@ -91,10 +165,7 @@ function render({ fit = true } = {}) {
   $('#fit-map').disabled = !shapes.length;
   const message = $('#map-message');
   message.hidden = !!onMap;
-  message.innerHTML = !state.levels.size ? 'A world of hunting grounds.<small>Select a monster level to begin.</small>' : !visible.length ? 'No monsters match your filters.<small>Try clearing your search or changing the aggression, weakness or resistance filters.</small>' : `No selected monsters in ${map.name}.<small>Try the ${state.map === 'aden' ? 'Elmore' : 'Aden'} tab or choose another level.</small>`;
-  $$('.filter').forEach(button => { const active = state.aggro === button.dataset.aggro; button.classList.toggle('active', active); button.setAttribute('aria-pressed', active); });
-  for (const kind of ['weakness', 'resistance']) $(`#${kind}`).value = state[kind];
-  $('#clear-traits').hidden = state.weakness === 'all' && state.resistance === 'all';
+  message.innerHTML = !state.levels.size ? 'A world of hunting grounds.<small>Select a monster level to begin.</small>' : !visible.length ? 'No monsters match your filters.<small>Try another weakness or level.</small>' : `No selected monsters in ${map.name}.<small>Try the ${state.map === 'aden' ? 'Elmore' : 'Aden'} tab or choose another level.</small>`;
   closeTooltip(); hoverId = null; focusedId = null;
   saveUrl();
   if (fit) fitShapes();
@@ -196,18 +267,6 @@ function highlightList(id) {
   $$('.monster-row.highlighted').forEach(row => row.classList.remove('highlighted'));
   if (id !== null) $(`.monster-row[data-id="${id}"]`)?.classList.add('highlighted');
 }
-function locateMonster(id) {
-  const monster = data.monsters.find(entry => entry.id === id);
-  if (!monster) return;
-  if (!monster.maps.includes(state.map)) { state.map = monster.maps[0]; render({ fit: false }); }
-  closeTooltip(); focusedId = id; hoverId = null;
-  fitBounds(mapSpawns(monster).flatMap(spawn => spawn.pos.map(point => pixel(point))));
-  highlightList(id);
-  notify(`${monster.name} · Level ${monster.level} · ${map.name}`);
-  $('#map').focus({ preventScroll: true });
-  if (matchMedia('(max-width:760px)').matches) stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
 $('#levels').addEventListener('click', event => {
   const button = event.target.closest('button[data-level]');
   if (!button) return;
@@ -221,12 +280,36 @@ $('#levels').addEventListener('change', event => {
 $('#clear-levels').addEventListener('click', () => { state.levels.clear(); render(); });
 $$('.map-tab').forEach(button => button.addEventListener('click', () => { if (state.map === button.dataset.map || !data) return; state.map = button.dataset.map; render(); }));
 $$('.map-tab').forEach(button => button.addEventListener('keydown', event => { if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return; event.preventDefault(); const next = button.dataset.map === 'aden' ? $('#tab-elmore') : $('#tab-aden'); next.click(); next.focus(); }));
-$$('.filter').forEach(button => button.addEventListener('click', () => { state.aggro = button.dataset.aggro; render(); }));
-for (const kind of ['weakness', 'resistance']) $(`#${kind}`).addEventListener('change', event => { state[kind] = event.target.value; render(); });
-$('#clear-traits').addEventListener('click', () => { state.weakness = 'all'; state.resistance = 'all'; render(); });
-$('#search').value = state.search;
-$('#search').addEventListener('input', event => { state.search = event.target.value; render(); });
-$('#monster-list').addEventListener('click', event => { const button = event.target.closest('[data-locate]'); if (button) locateMonster(Number(button.dataset.locate)); });
+const weaknessIcons = { animal:'🐾', beast:'🐺', blunt:'🔨', bow:'🏹', bug:'🪲', dragon:'🐉',
+  earth:'🪨', fire:'🔥', holy:'✦', plant:'🌿', water:'💧', wind:'🌬️' };
+const traitIcon = name => '<span class="trait-picture" aria-hidden="true">'+weaknessIcons[name]+'</span>';
+const surrenderOptions = Object.entries(SURRENDER_SKILLS).filter(([element]) => element !== 'earth').flatMap(([element,id]) =>
+  [1,2].map(rank => [element+'-'+rank, '<img src="assets/skills/skill'+id+'.png" width="20" height="20" alt="">'+traitLabel(element)+' lvl '+rank]));
+function renderMapPicker(id, options, selectedValue) {
+  $('#'+id+'-options').innerHTML = options.map(([value,label]) =>
+    '<button type="button" data-value="'+value+'" aria-pressed="'+(value===selectedValue)+'">'+label+'</button>').join('');
+  $('#'+id+'-current').innerHTML = options.find(([value]) => value===selectedValue)?.[1] ?? '';
+}
+function renderMapPickers() {
+  const weaknesses = traitOptions(data.monsters,'weakness').map(name => [name, traitIcon(name)+traitLabel(name)+
+    (name==='holy'?', <span class="trait-picture" aria-hidden="true">💀</span>Undead':'')]);
+  renderMapPicker('weakness',[['all','All'],...weaknesses],state.weakness);
+  renderMapPicker('surrender',[['','Off'],...surrenderOptions],state.surrender);
+}
+for (const id of ['weakness','surrender']) $('#'+id).addEventListener('click', event => {
+  const button=event.target.closest('[data-value]');
+  if(!button || !data) return;
+  state[id]=button.dataset.value;
+  $('#'+id).open=false;
+  $('#'+id+' summary').focus();
+  if(id==='surrender') refreshKillView();
+  else render();
+  renderMapPickers();
+  saveUrl();
+});
+document.addEventListener('click',event=>{
+  for(const picker of $$('.map-picker[open]')) if(!picker.contains(event.target)) picker.open=false;
+});
 $('#monster-list').addEventListener('pointerover', event => { const row = event.target.closest('.monster-row'); if (row) { hoverId = Number(row.dataset.id); scheduleDraw(); } });
 $('#monster-list').addEventListener('pointerleave', () => { hoverId = null; scheduleDraw(); });
 $('#fit-map').addEventListener('click', () => { focusedId = null; hoverId = null; highlightList(null); closeTooltip(); fitShapes(); });
@@ -277,7 +360,6 @@ canvas.addEventListener('keydown', event => {
   else if (event.key.startsWith('Arrow')) { event.preventDefault(); view.x += event.key === 'ArrowLeft' ? 45 : event.key === 'ArrowRight' ? -45 : 0; view.y += event.key === 'ArrowUp' ? 45 : event.key === 'ArrowDown' ? -45 : 0; clampView(); closeTooltip(); scheduleDraw(); }
 });
 document.addEventListener('keydown', event => {
-  if (event.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { event.preventDefault(); $('#search').focus(); }
   if (event.key === 'Escape') { closeTooltip(); hoverId = null; focusedId = null; highlightList(null); scheduleDraw(); }
 });
 new ResizeObserver(entries => {
@@ -295,12 +377,9 @@ async function init() {
     const response = await fetch('data/monsters.json');
     if (!response.ok) throw new Error(`Monster data returned ${response.status}`);
     data = await response.json();
-    for (const kind of ['weakness', 'resistance']) {
-      const options = traitOptions(data.monsters, kind);
-      if (!['all', 'any', 'none', ...options].includes(state[kind])) state[kind] = 'all';
-      $(`#${kind}`).innerHTML = `<option value="all">All monsters</option><option value="any">Any ${kind}</option><option value="none">No listed ${kind}</option>` + options.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(traitLabel(name))}</option>`).join('');
-      $(`#${kind}`).disabled = false;
-    }
+    if (!['all',...traitOptions(data.monsters,'weakness')].includes(state.weakness)) state.weakness='all';
+    if (!surrenderOptions.some(([value])=>value===state.surrender)) state.surrender='';
+    renderMapPickers();
     const available = new Set(data.monsters.map(monster => monster.level));
     state.levels = new Set([...state.levels].filter(level => available.has(level)));
     map = data.maps.find(entry => entry.id === state.map);

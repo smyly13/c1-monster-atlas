@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/compass.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="atlas-page">
   <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
     <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m16 8-2.5 5.5L8 16l2.5-5.5L16 8Z"/><path d="M12 1v2m0 18v2M1 12h2m18 0h2"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
@@ -23,8 +23,7 @@
   </defs></svg>
   <header class="app-header">
     <a href="./" class="brand" aria-label="C1 Monster Atlas home"><span class="brand-icon"><svg><use href="#i-compass"/></svg></span><span><strong>MONSTER ATLAS<span class="brand-period">.</span></strong><small>LINEAGE II · CHRONICLE 1</small></span></a>
-    <div class="header-note"><span class="live-dot"></span> A better view of your next hunt.</div>
-    <a class="source-link" href="https://l2hub.info/c1/locs" target="_blank" rel="noopener noreferrer">Explore L2Hub <svg><use href="#i-arrow"/></svg></a>
+    <nav class="page-nav" aria-label="Main navigation"><a href="./" aria-current="page">Monster map</a><a href="calculator.html">Damage calculator</a></nav>
   </header>
   <main class="workspace">
     <aside class="levels-panel" aria-labelledby="levels-title">
@@ -50,13 +49,28 @@
       <div class="map-legend"><div id="legend" class="legend-items"></div><span id="spawn-count" class="spawn-count">— spawn areas</span></div>
     </section>
     <aside class="monsters-panel" aria-labelledby="monsters-title">
-      <div class="monster-heading"><div><span class="eyebrow">KNOW YOUR HUNT</span><h2 id="monsters-title">Monsters <span id="monster-count" class="count-badge">—</span></h2></div><svg class="heading-icon"><use href="#i-pin"/></svg></div>
-      <div class="monster-tools"><label class="search-field"><svg><use href="#i-search"/></svg><input type="search" id="search" placeholder="Find a monster or location…" aria-label="Search selected monsters or locations"><kbd>/</kbd></label><div class="aggro-filters" aria-label="Aggression filter"><button class="filter active" data-aggro="all" aria-pressed="true">All</button><button class="filter" data-aggro="passive" aria-pressed="false"><span class="passive-dot"></span>Passive</button><button class="filter" data-aggro="aggressive" aria-pressed="false"><span class="aggressive-dot"></span>Aggressive</button></div><div class="trait-filters"><label for="weakness">Weakness<select id="weakness" disabled><option value="all">Loading…</option></select></label><label for="resistance">Resistance<select id="resistance" disabled><option value="all">Loading…</option></select></label></div><div class="trait-filter-note"><span>Combine filters to narrow your hunt.</span><button id="clear-traits" class="text-button" hidden>Clear traits</button></div></div>
+      <div class="monster-heading"><div><h2 id="monsters-title">Monsters <span id="monster-count" class="count-badge">—</span></h2></div><svg class="heading-icon"><use href="#i-pin"/></svg></div>
+      <div class="monster-tools">
+        <fieldset id="kill-view" class="kill-view" aria-label="Kill estimate display"><label><input type="radio" name="kill-view" value="off" checked>No kill estimate</label><label><input type="radio" name="kill-view" value="cost">Adena profit</label><label><input type="radio" name="kill-view" value="casts">Fewest casts</label><label><input type="radio" name="kill-view" value="mp">Lowest MP use</label></fieldset>
+        <div class="trait-filters">
+          <details class="map-picker" id="weakness"><summary>Weakness <span id="weakness-current">All</span></summary><div id="weakness-options" class="map-picker-options"></div></details>
+          <details class="map-picker" id="surrender"><summary>Surrender to <span id="surrender-current">Off</span></summary><div id="surrender-options" class="map-picker-options"></div></details>
+        </div>
+        <div class="stamina-row">
+          <span id="stamina-label">Stamina</span>
+          <fieldset id="stamina" aria-labelledby="stamina-label">
+            <label class="stamina-energized" title="Energized"><input type="radio" name="stamina" value="100" checked><span>100%</span></label>
+            <label class="stamina-fatigued" title="Fatigued"><input type="radio" name="stamina" value="50"><span>50%</span></label>
+            <label class="stamina-exhausted" title="Exhausted"><input type="radio" name="stamina" value="30"><span>30%</span></label>
+            <label class="stamina-depleted" title="Depleted"><input type="radio" name="stamina" value="5"><span>5%</span></label>
+          </fieldset>
+        </div>
+        <p id="kill-status" class="kill-status" role="status" hidden></p>
+      </div>
       <div id="monster-list" class="monster-list"><div class="loading-text">Loading monsters…</div></div>
-      <div class="monster-footer"><svg><use href="#i-target"/></svg><span>Use the crosshair to find a monster.<br>Names open its L2Hub page.</span></div>
     </aside>
   </main>
-  <footer class="app-footer"><span><span class="footer-mark">C1</span> HARBINGERS OF WAR</span><span id="dataset-summary">Preparing the atlas…</span><span>Data & maps from <a href="https://l2hub.info/c1" target="_blank" rel="noopener noreferrer">L2Hub <svg><use href="#i-arrow"/></svg></a></span></footer>
+  <footer class="app-footer"><span><span class="footer-mark">C1</span> HARBINGERS OF WAR <a class="footer-source" href="https://l2hub.info/c1/locs" target="_blank" rel="noopener noreferrer">Explore L2Hub <svg><use href="#i-arrow"/></svg></a></span><span id="dataset-summary">Preparing the atlas…</span><span>Data & maps from <a href="https://l2hub.info/c1" target="_blank" rel="noopener noreferrer">L2Hub <svg><use href="#i-arrow"/></svg></a></span></footer>
   <div id="toast" class="toast" role="status" hidden></div>
   <script type="module" src="app.js"></script>
 </body>
