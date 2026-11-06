@@ -267,17 +267,45 @@ function highlightList(id) {
   $$('.monster-row.highlighted').forEach(row => row.classList.remove('highlighted'));
   if (id !== null) $(`.monster-row[data-id="${id}"]`)?.classList.add('highlighted');
 }
+let levelAnchor = null;
 $('#levels').addEventListener('click', event => {
-  const button = event.target.closest('button[data-level]');
-  if (!button) return;
-  state.levels = new Set([Number(button.dataset.level)]); render();
+  const control = event.target.closest('button[data-level], input[data-level]');
+  if (!control) return;
+  const level = Number(control.dataset.level);
+  if (event.shiftKey && levelAnchor !== null) {
+    event.preventDefault();
+    const first = Math.min(levelAnchor, level);
+    const last = Math.max(levelAnchor, level);
+    for (const row of $$('.level-row[data-level]')) {
+      const candidate = Number(row.dataset.level);
+      if (candidate >= first && candidate <= last) state.levels.add(candidate);
+    }
+    render();
+    return;
+  }
+  if (control.tagName === 'BUTTON') {
+    levelAnchor = level;
+    state.levels = new Set([level]);
+    render();
+  }
 });
 $('#levels').addEventListener('change', event => {
   if (!event.target.matches('input[data-level]')) return;
   const level = Number(event.target.dataset.level);
-  event.target.checked ? state.levels.add(level) : state.levels.delete(level); render();
+  if (event.target.checked) {
+    state.levels.add(level);
+    levelAnchor = level;
+  } else {
+    state.levels.delete(level);
+    if (levelAnchor === level) levelAnchor = null;
+  }
+  render();
 });
-$('#clear-levels').addEventListener('click', () => { state.levels.clear(); render(); });
+$('#clear-levels').addEventListener('click', () => {
+  levelAnchor = null;
+  state.levels.clear();
+  render();
+});
 $$('.map-tab').forEach(button => button.addEventListener('click', () => { if (state.map === button.dataset.map || !data) return; state.map = button.dataset.map; render(); }));
 $$('.map-tab').forEach(button => button.addEventListener('keydown', event => { if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return; event.preventDefault(); const next = button.dataset.map === 'aden' ? $('#tab-elmore') : $('#tab-aden'); next.click(); next.focus(); }));
 const weaknessIcons = { animal:'🐾', beast:'🐺', blunt:'🔨', bow:'🏹', bug:'🪲', dragon:'🐉',
