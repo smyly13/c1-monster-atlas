@@ -64,3 +64,4 @@
 #calculator-pin-list{max-height:clamp(185px,36dvh,360px)}
 .calculator-pin-entry+.calculator-pin-entry{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
 .calculator-pin-result{margin:0 5px 5px}
+#pinned-estimates label{flex-direction:row;align-items:center;justify-content:flex-start}

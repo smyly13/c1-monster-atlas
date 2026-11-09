@@ -245,7 +245,7 @@ async function init() {
     [catalog,atlas,equipmentData]=await Promise.all(responses.map(r=>r.json()));repairProfile();
     equipmentPicker=createEquipmentPicker({root:$('#equipment-selector'),catalog:equipmentData,combat:catalog,getProfile:()=>profile,onChange:next=>{profile=cleanProfile(next);renderWeapons();save();}});
     populateForm();
-    worker=new Worker(new URL('./combat-worker.js',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./combat-worker.js?v=live-pins-2',import.meta.url),{type:'module'});
     worker.postMessage({type:'init',catalog,monsters:atlas.monsters});
     worker.onmessage = ({data}) => {
       if (data.requestId !== requestId) return;
