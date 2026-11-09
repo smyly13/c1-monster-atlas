@@ -47,3 +47,15 @@
 #primary-skill-options{display:grid;gap:4px;padding:5px 0}
 #primary-skill-options button{text-align:left;border:1px solid var(--line);padding:6px 10px;border-radius:5px;font-size:12px}
 #primary-skill-options button:hover,#primary-skill-options button[aria-pressed=true]{background:#292c21;color:var(--gold)}
+
+#calculator-pins{padding:15px 18px}
+#calculator-pins h2{margin:0 0 8px;font-size:21px}
+#calculator-pin-list{max-height:185px;overflow:auto;scrollbar-gutter:stable}
+.calculator-pin-row{display:flex;align-items:center;gap:6px;padding:3px 5px}
+.calculator-pin-target{min-width:0;flex:1;text-align:left;padding:6px 8px;border-radius:4px}
+.calculator-pin-target:hover,.calculator-pin-target[aria-pressed=true]{background:#292c21;color:var(--gold)}
+.calculator-pin-target strong,.calculator-pin-target small{display:block;line-height:1.5}
+.calculator-pin-target strong{font-size:12px}
+.calculator-pin-target small{font-size:10px;color:var(--muted)}
+#target-preview{scroll-margin-top:15px}
+#calculator-pins .pinned-heading{margin-bottom:8px}#calculator-pins .pinned-heading h2{margin:0}

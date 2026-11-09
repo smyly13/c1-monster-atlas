@@ -27,11 +27,14 @@
   </header>
   <main class="workspace">
     <aside class="levels-panel" aria-labelledby="levels-title">
-      <div class="panel-heading"><div><span class="eyebrow">FIND YOUR RANGE</span><h1 id="levels-title">Monster levels</h1></div><button id="clear-levels" class="text-button" title="Clear all selected levels">Clear</button></div>
-      <p class="level-help">Click a level to explore.<br>Shift-click another level to select a range.</p>
+      <div class="panel-heading"><div><h1 id="levels-title">Monster levels</h1></div><button id="clear-levels" class="text-button" title="Clear all selected levels">Clear</button></div>
+      <p class="level-help">Click a level or Shift-click for a range.</p>
       <div class="level-column-head"><span>LEVEL</span><span>MOBS</span></div>
       <div id="levels" class="level-list" aria-label="Monster levels"><div class="loading-text">Loading levels…</div></div>
-      <div class="selection-summary"><span id="selected-level-count">1 level selected</span><span class="keyboard-hint">✓ combine levels</span></div>
+      <section class="map-pins" id="map-pins" aria-labelledby="map-pins-title" hidden>
+        <div class="monster-heading pinned-heading"><h2 id="map-pins-title">Pinned monsters <span id="pin-count" class="count-badge"></span></h2><button type="button" id="clear-map-pins" class="clear-pins">Clear Pins</button></div>
+        <div id="pinned-monster-list" class="monster-list"></div>
+      </section>
     </aside>
     <section class="map-panel" aria-label="Interactive monster spawn map">
       <div class="map-toolbar"><div class="map-tabs" role="tablist" aria-label="World map"><button id="tab-aden" class="map-tab active" role="tab" aria-selected="true" aria-controls="map-stage" data-map="aden"><svg><use href="#i-compass"/></svg>Aden<span class="tab-count" id="count-aden">—</span></button><button id="tab-elmore" class="map-tab" role="tab" aria-selected="false" aria-controls="map-stage" data-map="elmore">Elmore<span class="tab-count" id="count-elmore">—</span></button></div><button id="fit-map" class="quiet-button fit-button" title="Fit selected spawn areas"><svg><use href="#i-expand"/></svg><span>Fit spawns</span></button></div>

@@ -65,3 +65,35 @@
 .stamina-fatigued{--stamina-color:#dfb762}
 .stamina-exhausted{--stamina-color:#d79065}
 .stamina-depleted{--stamina-color:#bf9691}
+
+.monster-pin{flex:0 0 29px;width:29px;height:29px;display:grid;place-items:center;border:1px solid var(--line);border-radius:4px;color:var(--muted);background:#171e14;cursor:pointer}
+.monster-pin svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.monster-pin:hover,.monster-pin[aria-pressed=true]{color:var(--gold);border-color:#786945;background:#292c21}
+.monster-pin[aria-pressed=true] svg{fill:currentColor}
+.monster-pin:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.map-pins{display:flex;flex-direction:column;flex:1;min-height:0;border-top:1px solid var(--line)}
+.map-pins .monster-heading{padding-bottom:8px}
+.map-pins .monster-heading h2{font-size:21px}
+@media(min-width:761px){
+  .workspace:has(.map-pins:not([hidden])){grid-template-columns:332px minmax(0,1fr) 332px}
+  .levels-panel:has(.map-pins:not([hidden]))>.level-list{flex:1 1 0}
+  .map-pins{flex:1 1 0}
+}
+@media(min-width:1650px){.workspace:has(.map-pins:not([hidden])){grid-template-columns:370px minmax(0,1fr) 370px}}
+@media(min-width:761px) and (max-width:1100px){.workspace:has(.map-pins:not([hidden])){grid-template-columns:min(29vw,280px) minmax(0,1fr) min(29vw,280px)}}
+@media(max-width:760px){.map-pins .monster-list{max-height:320px}}
+
+.pinned-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pinned-heading .clear-pins{font-family:var(--display);font-size:21px;font-weight:500;line-height:inherit;color:inherit;white-space:nowrap;cursor:pointer;margin-left:auto}
+.pinned-heading .clear-pins:hover{text-decoration:underline}
+
+.levels-panel .panel-heading{display:flex;align-items:center;padding:9px 13px 0;gap:8px}
+.levels-panel .panel-heading h1{margin-top:0}
+.levels-panel .panel-heading>.text-button{position:static}
+.levels-panel .level-help{padding:3px 13px 5px;line-height:1.4}
+.levels-panel .level-column-head{padding:0 14px 4px}
+@media(min-width:761px){
+  .levels-panel .level-list{padding-block:3px}
+  .levels-panel .level-row{height:28px;margin-bottom:1px}
+  .levels-panel .map-pins{flex-grow:1.5}
+}

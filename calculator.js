@@ -1,3 +1,4 @@
+import { MONSTER_PINS_KEY, loadMonsterPins, saveMonsterPins, pinnedMonsters, monsterPinButton } from './monster-pins.js';
 import { defaults, cleanProfile, loadProfile, saveProfile, learnedSkills, selectedSkills, skillKind, statSkill, partyBuffs, classChain, baseStats, characterStats, planLabel, MODES, PROFILE_KEY } from './combat.js';
 import { escape, amount, profitLabel } from './combat-ui.js';
 import { createEquipmentPicker } from './equipment.js';
@@ -169,11 +170,36 @@ function save() {
   $('#save-status').textContent=ok?'Saved in this browser · used by the monster map':'Browser storage unavailable. Export your build to keep it; the monster map cannot receive these settings.';
   renderStats();clearTimeout(timer);timer=setTimeout(calculate,160);
 }
+let monsterPins = loadMonsterPins();
+function renderPinnedTargets() {
+  if (!atlas) return;
+  const entries = pinnedMonsters(atlas.monsters, monsterPins);
+  $('#calculator-pins').hidden = !entries.length;
+  $('#calculator-pin-list').innerHTML = entries.map(monster => {
+    const locations = monster.locations.map(location => location.name).join(', ');
+    return `<div class="calculator-pin-row">
+      <button type="button" class="calculator-pin-target" data-pinned-target="${monster.id}" aria-pressed="${monster.id === targetId}">
+        <strong>${escape(monster.name)}</strong>
+        <small>Lv. ${monster.level}${locations ? ' · '+escape(locations) : ''}</small>
+      </button>
+      ${monsterPinButton(monster, true)}
+    </div>`;
+  }).join('');
+}
+function selectTarget(id) {
+  targetId = id;
+  $('#target-monster').value = targetId;
+  for (const button of $$('[data-pinned-target]')) {
+    button.setAttribute('aria-pressed', Number(button.dataset.pinnedTarget) === id);
+  }
+  calculate();
+}
 function renderTargets() {
   const matches=atlas.monsters;
   $('#target-monster').innerHTML=options(matches.map(m=>[m.id,`Lv.${m.level} ${m.name}${m.locations.length?' · '+m.locations[0].name:''} · #${m.id}`]));
   if(!matches.some(m=>m.id===targetId))targetId=matches.find(m=>m.slug==='ruin_bat')?.id??matches[0]?.id;
-  $('#target-monster').value=targetId??'';calculate();
+  renderPinnedTargets();
+  selectTarget(targetId);
 }
 function calculate() {
   const currentRequest=++requestId;
@@ -328,7 +354,32 @@ $('#build-form').addEventListener('input',event=>{
   profile=cleanProfile(profile);save();
 });
 $('#sort-plans').addEventListener('change',event=>{profile.sort=event.target.value;save();});
-$('#target-monster').addEventListener('change',event=>{targetId=Number(event.target.value);calculate();});
+$('#target-monster').addEventListener('change', event => selectTarget(Number(event.target.value)));
+$('#clear-calculator-pins').addEventListener('click', () => {
+  monsterPins.clear();
+  saveMonsterPins(monsterPins);
+  renderPinnedTargets();
+  $('#target-monster').focus();
+});
+$('#calculator-pin-list').addEventListener('click', event => {
+  const target = event.target.closest('[data-pinned-target]');
+  if (target) {
+    selectTarget(Number(target.dataset.pinnedTarget));
+    $('#target-monster').focus();
+    return;
+  }
+  const unpin = event.target.closest('[data-monster-pin]');
+  if (!unpin) return;
+  monsterPins.delete(Number(unpin.dataset.monsterPin));
+  saveMonsterPins(monsterPins);
+  renderPinnedTargets();
+  ($('#calculator-pin-list .monster-pin') ?? $('#target-monster')).focus();
+});
+window.addEventListener('storage', event => {
+  if (event.key !== MONSTER_PINS_KEY && event.key !== null) return;
+  monsterPins = loadMonsterPins();
+  renderPinnedTargets();
+});
 $('#source-prices').addEventListener('click',sourcePrices);
 $('#reset-build').addEventListener('click',()=>{profile=defaults();repairProfile();populateForm();save();});
 $('#export-build').addEventListener('click',()=>{

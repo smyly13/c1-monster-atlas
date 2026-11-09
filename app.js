@@ -1,6 +1,7 @@
 import { matchesTrait, traitLabel, traitOptions } from './traits.js';
 import { loadProfile, SURRENDER_SKILLS, PROFILE_KEY, TOGGLE_KEY } from './combat.js';
 import { killCard } from './combat-ui.js';
+import { MONSTER_PINS_KEY, loadMonsterPins, saveMonsterPins, pinnedMonsters, monsterPinButton } from './monster-pins.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -16,6 +17,7 @@ const state = { levels: new Set(params.has('levels') ? params.get('levels').spli
 state.weakness = params.get('weakness') ?? 'all';
 state.surrender = params.get('surrender') ?? '';
 state.stamina = 100;
+let pins = loadMonsterPins(), pinnedEntries = [], mapEntries = [];
 let data, map, visible = [], selected = [], shapes = [], imageCache = new Map();
 let width = 0, height = 0, view = { scale: 1, x: 0, y: 0 }, minScale = .1;
 let hoverId = null, focusedId = null, pinned = false, drag = null, frame = null;
@@ -48,8 +50,7 @@ async function renderKills() {
         if (message.requestId !== combatRequest || !showKills) return;
         for (const row of message.results) {
           killResults.set(row.id, row.result);
-          const slot = $(`[data-kill="${row.id}"]`);
-          if (slot) slot.innerHTML = killCard(row.result);
+          for (const slot of $$(`[data-kill="${row.id}"]`)) slot.innerHTML = killCard(row.result);
         }
         if (message.done) $('#kill-status').hidden = true;
       };
@@ -59,7 +60,7 @@ async function renderKills() {
         $$('.kill-slot').forEach(slot => { slot.textContent = 'Calculator unavailable'; });
       };
     }
-    const ids = visible.filter(m => !killResults.has(m.id)).map(m => m.id);
+    const ids = mapEntries.filter(m => !killResults.has(m.id)).map(m => m.id);
     combatWorker.postMessage({ type: 'calculate', requestId: ++combatRequest, profile: { ...loadProfile(), sort: killView, shot: 'auto', surrender: state.surrender, dropAmount: state.stamina / 100 }, ids });
   } catch {
     combatLoading = null;
@@ -84,6 +85,10 @@ $('#kill-view').addEventListener('change', event => {
   refreshKillView();
 });
 window.addEventListener('storage', event => {
+  if (event.key === MONSTER_PINS_KEY || event.key === null) {
+    pins = loadMonsterPins();
+    render({ fit:false });
+  }
   if (event.key === TOGGLE_KEY) syncKillView(event.newValue);
   if (event.key === PROFILE_KEY || event.key === TOGGLE_KEY) refreshKillView();
 });
@@ -102,7 +107,7 @@ function saveUrl() {
 function pixel(point, target = map) { return { x: target.zeroX + point.x * target.scale, y: target.zeroY + point.y * target.scale }; }
 function inMap(point, target = map) { const p = pixel(point, target); return p.x >= 0 && p.x <= target.width && p.y >= 0 && p.y <= target.height; }
 function mapSpawns(monster, target = map) { return monster.spawns.filter(spawn => spawn.pos.some(point => inMap(point, target))); }
-function currentMonsters() { return visible.filter(monster => monster.maps.includes(state.map)); }
+function currentMonsters() { return mapEntries.filter(monster => monster.maps.includes(state.map)); }
 function project(point) { return { x: view.x + point.x * view.scale, y: view.y + point.y * view.scale }; }
 function toImage(x, y) { return { x: (x - view.x) / view.scale, y: (y - view.y) / view.scale }; }
 function closeTooltip() { pinned = false; $('#map-tooltip').hidden = true; }
@@ -111,16 +116,23 @@ function renderLevels() {
   const counts = new Map();
   data.monsters.forEach(monster => counts.set(monster.level, (counts.get(monster.level) ?? 0) + 1));
   $('#levels').innerHTML = [...counts].sort((a, b) => a[0] - b[0]).map(([level, count]) => `<div class="level-row ${state.levels.has(level) ? 'selected' : ''}" style="--level-color:${color(level)}" data-level="${level}"><input class="level-check" type="checkbox" aria-label="Include level ${level}" data-level="${level}" ${state.levels.has(level) ? 'checked' : ''}><button class="level-button" data-level="${level}" aria-label="Show only level ${level}" aria-pressed="${state.levels.has(level)}"><span>Level <span class="level-number">${level}</span></span><span class="level-swatch"></span><span class="level-mobs">${count}</span></button></div>`).join('');
-  const count = state.levels.size;
-  $('#selected-level-count').textContent = `${count} level${count === 1 ? '' : 's'} selected`;
-  $('#clear-levels').disabled = !count;
+  $('#clear-levels').disabled = !state.levels.size;
 }
 
 function renderTraits(monster) {
   return '<span class="monster-traits">' + (monster.traitModifiers ?? []).map(trait => `<span class="trait-badge ${trait.kind}" title="${escapeHtml(traitLabel(trait.name))} ${trait.kind}: ${trait.value}%"><span>${trait.kind === 'weakness' ? 'Weak' : 'Resist'}</span> ${escapeHtml(traitLabel(trait.name))} ${trait.value}%</span>`).join('') + '</span>';
 }
 
+function renderMonsterCard(monster, duplicate = false) {
+  const { level } = monster;
+  const location = monster.locations.map(loc => loc.name).join(', ') || 'Location not named';
+  return `<div class="monster-entry"><div class="monster-row ${monster.maps.includes(state.map) ? '' : 'other-map'}" data-id="${monster.id}"><a class="monster-link" href="https://l2hub.info/c1/npcs/${encodeURIComponent(monster.slug)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(monster.name)}, level ${level}, ${escapeHtml(location)}. Open L2Hub in a new tab."><span class="monster-name">${escapeHtml(monster.name)} <span class="monster-location">( ${escapeHtml(location)} )</span>${icon('arrow').replace('<svg', '<svg class="external-mark"')}</span><span class="monster-sub"><span class="${monster.aggressive ? 'aggressive' : 'passive'}-dot"></span>${monster.aggressive ? 'Aggressive' : 'Passive'}<span class="monster-map">Lv. ${level} · ${monster.maps.map(id => id === 'aden' ? 'Aden' : 'Elmore').join(' · ')}</span>${duplicate ? `<span>· ID ${monster.id}</span>` : ''}</span>${renderTraits(monster)}</a>${monsterPinButton(monster,pins.has(monster.id))}</div>${showKills ? `<div class="kill-slot" data-kill="${monster.id}">${killCard(killResults.get(monster.id))}</div>` : ''}</div>`;
+}
+
 function renderList() {
+  $('#map-pins').hidden = !pinnedEntries.length;
+  $('#pin-count').textContent = pinnedEntries.length;
+  $('#pinned-monster-list').innerHTML = pinnedEntries.map(monster => renderMonsterCard(monster)).join('');
   $('#monster-count').textContent = visible.length;
   if (!visible.length) {
     $('#monster-list').innerHTML = `<div class="empty-list">${icon(state.levels.size ? 'search' : 'compass')}<strong>${state.levels.size ? 'No matching monsters' : 'Your next hunt starts here'}</strong><small>${state.levels.size ? 'Try another weakness or level.' : 'Select a level on the left to reveal its monsters and spawn areas.'}</small></div>`;
@@ -138,9 +150,8 @@ function renderList() {
   const nameCounts = new Map();
   visible.forEach(monster => nameCounts.set(`${monster.level}:${monster.name}`, (nameCounts.get(`${monster.level}:${monster.name}`) ?? 0) + 1));
   $('#monster-list').innerHTML = [...groups, ...unknownGroups].map(([level, monsters], index) => `<section class="monster-group" aria-label="Level ${level} monsters"><div class="monster-group-heading"><span class="group-level" style="--level-color:${color(level)}"><span class="legend-dot"></span>LEVEL ${level}${index >= groups.size ? ' · Drop unknown' : ''}</span><span class="group-count">${monsters.length} monster${monsters.length === 1 ? '' : 's'}</span></div>${monsters.map(monster => {
-    const location = monster.locations.map(loc => loc.name).join(', ') || 'Location not named';
     const duplicate = nameCounts.get(`${level}:${monster.name}`) > 1;
-    return `<div class="monster-entry"><div class="monster-row ${monster.maps.includes(state.map) ? '' : 'other-map'}" data-id="${monster.id}"><a class="monster-link" href="https://l2hub.info/c1/npcs/${encodeURIComponent(monster.slug)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(monster.name)}, level ${level}, ${escapeHtml(location)}. Open L2Hub in a new tab."><span class="monster-name">${escapeHtml(monster.name)} <span class="monster-location">( ${escapeHtml(location)} )</span>${icon('arrow').replace('<svg', '<svg class="external-mark"')}</span><span class="monster-sub"><span class="${monster.aggressive ? 'aggressive' : 'passive'}-dot"></span>${monster.aggressive ? 'Aggressive' : 'Passive'}<span class="monster-map">${monster.maps.map(id => id === 'aden' ? 'Aden' : 'Elmore').join(' · ')}</span>${duplicate ? `<span>· ID ${monster.id}</span>` : ''}</span>${renderTraits(monster)}</a></div>${showKills ? `<div class="kill-slot" data-kill="${monster.id}">${killCard(killResults.get(monster.id))}</div>` : ''}</div>`;
+    return renderMonsterCard(monster, duplicate);
   }).join('')}</section>`).join('');
 }
 
@@ -148,6 +159,8 @@ function render({ fit = true } = {}) {
   if (!data) return;
   selected = data.monsters.filter(monster => state.levels.has(monster.level));
   visible = selected.filter(monster => matchesTrait(monster, 'weakness', state.weakness));
+  pinnedEntries = pinnedMonsters(data.monsters, pins);
+  mapEntries = [...visible, ...pinnedEntries.filter(monster => !visible.includes(monster))];
   map = data.maps.find(entry => entry.id === state.map);
   shapes = currentMonsters().flatMap(monster => mapSpawns(monster).map(spawn => ({ monster, points: spawn.pos.map(point => pixel(point)) })));
   renderLevels();
@@ -159,13 +172,13 @@ function render({ fit = true } = {}) {
   $('#map-name').textContent = map.name;
   const onMap = currentMonsters().length;
   $('#map-detail').textContent = `${onMap} monster${onMap === 1 ? '' : 's'} on this map · ${state.levels.size} level${state.levels.size === 1 ? '' : 's'} selected`;
-  for (const id of ['aden', 'elmore']) $(`#count-${id}`).textContent = visible.filter(monster => monster.maps.includes(id)).length;
-  $('#legend').innerHTML = [...state.levels].sort((a, b) => a - b).map(level => `<span class="legend-item" style="--level-color:${color(level)}"><span class="legend-dot"></span>Level ${level}</span>`).join('') || '<span class="legend-item">Select levels to show spawn areas</span>';
+  for (const id of ['aden', 'elmore']) $(`#count-${id}`).textContent = mapEntries.filter(monster => monster.maps.includes(id)).length;
+  $('#legend').innerHTML = [...new Set([...state.levels, ...pinnedEntries.map(monster => monster.level)])].sort((a, b) => a - b).map(level => `<span class="legend-item" style="--level-color:${color(level)}"><span class="legend-dot"></span>Level ${level}</span>`).join('') || '<span class="legend-item">Select levels to show spawn areas</span>';
   $('#spawn-count').textContent = `${shapes.length.toLocaleString()} spawn ${shapes.length === 1 ? 'area' : 'areas'}`;
   $('#fit-map').disabled = !shapes.length;
   const message = $('#map-message');
   message.hidden = !!onMap;
-  message.innerHTML = !state.levels.size ? 'A world of hunting grounds.<small>Select a monster level to begin.</small>' : !visible.length ? 'No monsters match your filters.<small>Try another weakness or level.</small>' : `No selected monsters in ${map.name}.<small>Try the ${state.map === 'aden' ? 'Elmore' : 'Aden'} tab or choose another level.</small>`;
+  message.innerHTML = !state.levels.size && !pinnedEntries.length ? 'A world of hunting grounds.<small>Select a monster level to begin.</small>' : !mapEntries.length ? 'No monsters match your filters.<small>Try another weakness or level.</small>' : `No selected monsters in ${map.name}.<small>Try the ${state.map === 'aden' ? 'Elmore' : 'Aden'} tab or choose another level.</small>`;
   closeTooltip(); hoverId = null; focusedId = null;
   saveUrl();
   if (fit) fitShapes();
@@ -265,7 +278,7 @@ function showTooltip(monsters, x, y, pin = false) {
 }
 function highlightList(id) {
   $$('.monster-row.highlighted').forEach(row => row.classList.remove('highlighted'));
-  if (id !== null) $(`.monster-row[data-id="${id}"]`)?.classList.add('highlighted');
+  if (id !== null) for (const row of $$(`.monster-row[data-id="${id}"]`)) row.classList.add('highlighted');
 }
 let levelAnchor = null;
 $('#levels').addEventListener('click', event => {
@@ -338,8 +351,34 @@ for (const id of ['weakness','surrender']) $('#'+id).addEventListener('click', e
 document.addEventListener('click',event=>{
   for(const picker of $$('.map-picker[open]')) if(!picker.contains(event.target)) picker.open=false;
 });
-$('#monster-list').addEventListener('pointerover', event => { const row = event.target.closest('.monster-row'); if (row) { hoverId = Number(row.dataset.id); scheduleDraw(); } });
-$('#monster-list').addEventListener('pointerleave', () => { hoverId = null; scheduleDraw(); });
+$('#clear-map-pins').addEventListener('click', () => {
+  pins.clear();
+  saveMonsterPins(pins);
+  render({ fit:false });
+  ($('#levels button[aria-pressed="true"]') ?? $('#levels button'))?.focus({ preventScroll:true });
+});
+for (const list of [$('#monster-list'), $('#pinned-monster-list')]) {
+  list.addEventListener('click', event => {
+    const button = event.target.closest('[data-monster-pin]');
+    if (!button) return;
+    const id = Number(button.dataset.monsterPin);
+    if (pins.has(id)) pins.delete(id);
+    else pins.add(id);
+    saveMonsterPins(pins);
+    render({ fit:false });
+    const selector = `[data-monster-pin="${id}"]`;
+    const next = list.querySelector(selector) ?? $(selector) ?? list.querySelector('[data-monster-pin]');
+    (next ?? $('#levels button[aria-pressed="true"]') ?? $('#levels button'))?.focus({ preventScroll:true });
+  });
+  list.addEventListener('pointerover', event => {
+    const row = event.target.closest('.monster-row');
+    if (row) { hoverId = Number(row.dataset.id); scheduleDraw(); }
+  });
+  list.addEventListener('pointerout', event => {
+    const row = event.target.closest('.monster-row');
+    if (row && !row.contains(event.relatedTarget)) { hoverId = null; scheduleDraw(); }
+  });
+}
 $('#fit-map').addEventListener('click', () => { focusedId = null; hoverId = null; highlightList(null); closeTooltip(); fitShapes(); });
 $('#zoom-in').addEventListener('click', () => zoom(1.3));
 $('#zoom-out').addEventListener('click', () => zoom(1 / 1.3));
